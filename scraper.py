@@ -1,4 +1,6 @@
 import json
+from sys import excepthook
+
 import requests
 from bs4 import BeautifulSoup
 from driver import *
@@ -8,22 +10,8 @@ import os
 
 Header = ["urls"]
 
-def open_links():
-    csv_file_path = 'property2.csv'
-
-    # Open the CSV file and read it line by line
-    with open(csv_file_path, newline='', encoding='utf-8') as csvfile:
-        csv_reader = csv.reader(csvfile)
-        # Skip the header row if there is one
-        next(csv_reader, None)
-
-        for row in csv_reader:
-            if row:  # Check if the row is not empty
-                link = row[0]  # Assuming links are in the first column
-                print(f'Processing link: {link}')
-
 def writing_csv(row):
-    fp = 'property2.csv'
+    fp = 'property.csv'
     with open(fp, 'a', encoding='utf-8', newline='') as f:
         writer = csv.writer(f)
         if os.path.getsize(fp) == 0:
@@ -37,11 +25,10 @@ class Property(Selenium):
         BASED_URL = 'https://www.property24.com/'
         self.get(BASED_URL)
         self.search()
-        self.scrape()
 
     def search(self):
         # city_nm = input("Enter City Name:")
-        time.sleep(25)
+        time.sleep(30)
         self.wait.until(EC.presence_of_element_located((By.XPATH, '//input[@id="token-input-AutoCompleteItems"]')))
         print("starting")
         search = self.find_element(By.XPATH, '//input[@id="token-input-AutoCompleteItems"]')
@@ -54,21 +41,31 @@ class Property(Selenium):
         self.scrape()
 
     def crawl(self):
-        i = 1
         while True:
             try:
-                self.wait.until(EC.presence_of_element_located((By.XPATH, '//div[@class="p24_regularTile '
-                                                                          'js_rollover_container js_resultTileClickable'
-                                                                          '   p24_tileHoverWrapper"]//span//a')))
-                url = self.href(By.XPATH, f'(//div[@class="p24_regularTile js_rollover_container js_resultTileClickable   p24_tileHoverWrapper"]//span//a)[{i}]')
-                print(i,url)
-                i += 1
-                row = [url]
-                writing_csv(row)
-            except NoSuchElementException:
+                i = 1
+                while True:
+                    try:
+                        self.wait.until(EC.presence_of_element_located((By.XPATH, '//a[@class="p24_content "]')))
+                        url = self.href(By.XPATH, f'(//a[@class="p24_content "])[{i}]')
+                        print(i,url)
+                        i += 1
+                        row = [url]
+                        writing_csv(row)
+                    except NoSuchElementException:
+                        break
+                self.next_page()
+            except:
                 break
+
+    def next_page(self):
+        Button = self.find_element(By.XPATH,'//a[@class="pull-right"]')
+        if Button.is_enabled():
+            Button.click()
+            print("Next")
+
     def scrape(self):
-        csv_file_path = 'property2.csv'
+        csv_file_path = 'property.csv'
         with open(csv_file_path, newline='', encoding='utf-8') as csvfile:
             csv_reader = csv.reader(csvfile)
             next(csv_reader, None)
@@ -89,7 +86,6 @@ class Property(Selenium):
         bathrooms = soup.find(
             lambda tag: tag.name == "span" and tag.text == "Bathrooms:").find_next_sibling().text.strip()
         Price = soup.find("div", class_="p24_price").text
-        Listing_Number = soup.find('div', class_="col-6 p24_propertyOverviewKey").find_next_sibling().text.strip()
         try:
             Garages = soup.find(
                 lambda tag: tag.name == "span" and tag.text == "Garages:").find_next_sibling().text.strip()
